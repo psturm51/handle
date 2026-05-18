@@ -1,9 +1,6 @@
 #ifndef HANDLE_H
 #define HANDLE_H
 
-#include "core.h"
-#include "uri.h"
-
 #define FLAG_SERIAL_LOW_SPEED      0x01      //! 9600 bps
 #define FLAG_SERIAL_MED_SPEED      0x02      //! 115200 bps
 #define FLAG_SERIAL_HI_SPEED       0x04      //! 1000000 bps
