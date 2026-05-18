@@ -1,6 +1,26 @@
 #ifndef HANDLE_H
 #define HANDLE_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <linux/i2c-dev.h>
+#include <linux/i2c.h>
+#include <linux/spi/spidev.h>
+#include <linux/input.h>
+#include <sys/inotify.h>
+#include <sys/timerfd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #define FLAG_SERIAL_LOW_SPEED      0x01      //! 9600 bps
 #define FLAG_SERIAL_MED_SPEED      0x02      //! 115200 bps
 #define FLAG_SERIAL_HI_SPEED       0x04      //! 1000000 bps
@@ -57,6 +77,20 @@ Valid Inotify event flags:
 */
 
 namespace engine {
+  typedef unsigned char u8;
+  typedef unsigned short u16;
+  typedef unsigned int u32;
+  typedef unsigned long long u64;
+
+  typedef signed char s8;
+  typedef signed short s16;
+  typedef signed int s32;
+  typedef signed long long s64;
+
+  typedef float f32;
+  typedef double f64;
+  typedef long double f128;
+
   enum fileHandleType {
     FHT_NULL=0,
     FHT_FILE,
@@ -77,53 +111,13 @@ namespace engine {
     FHT_SPEAKER
   };
 
-  inline int set_interface_attribs (int fd, int speed, int parity){
-    struct termios tty;
-    if (tcgetattr (fd, &tty) != 0){
-      return -1;
-    }
-
-    cfsetospeed (&tty, speed);
-    cfsetispeed (&tty, speed);
-
-    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
-    // disable IGNBRK for mismatched speed tests; otherwise receive break
-    // as \000 chars
-    tty.c_iflag &= ~IGNBRK;         // disable break processing
-    tty.c_lflag = 0;                // no signaling chars, no echo,
-                                    // no canonical processing
-    tty.c_oflag = 0;                // no remapping, no delays
-    tty.c_cc[VMIN]  = 0;            // read doesn't block
-    tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
-
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
-
-    tty.c_cflag |= (CLOCAL | CREAD);// ignore modem controls,
-                                    // enable reading
-    tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
-    tty.c_cflag |= parity;
-    tty.c_cflag &= ~CSTOPB;
-    tty.c_cflag &= ~CRTSCTS;
-
-    if (tcsetattr (fd, TCSANOW, &tty) != 0){
-      return -1;
-    }
-    return 0;
-  }
-
-  static int xioctl(int fd, int request, void* arg)
-  {
-    for (int i = 0; i < 100; i++) {
-      int r = ioctl(fd, request, arg);
-      if (r != -1 || errno != EINTR) return r;
-    }
-    return -1;
-  }
-
+  
 
   class handle {
   private:
     virtual bool assertKeyboard();
+    virtual int xioctl(int request, void *arg);
+    virtual int set_interface_attribs(int speed,int parity);
   public:
     handle():
     filepointer(0){
@@ -208,6 +202,52 @@ namespace engine {
 	
     FILE *filepointer;
   };
+  inline int handle::set_interface_attribs( int speed, int parity)
+  {
+    struct termios tty;
+    if (tcgetattr(this->descriptor, &tty) != 0)
+    {
+      return -1;
+    }
+
+    cfsetospeed(&tty, speed);
+    cfsetispeed(&tty, speed);
+
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8; // 8-bit chars
+    // disable IGNBRK for mismatched speed tests; otherwise receive break
+    // as \000 chars
+    tty.c_iflag &= ~IGNBRK; // disable break processing
+    tty.c_lflag = 0;        // no signaling chars, no echo,
+                            // no canonical processing
+    tty.c_oflag = 0;        // no remapping, no delays
+    tty.c_cc[VMIN] = 0;     // read doesn't block
+    tty.c_cc[VTIME] = 5;    // 0.5 seconds read timeout
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
+
+    tty.c_cflag |= (CLOCAL | CREAD);   // ignore modem controls,
+                                       // enable reading
+    tty.c_cflag &= ~(PARENB | PARODD); // shut off parity
+    tty.c_cflag |= parity;
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag &= ~CRTSCTS;
+
+    if (tcsetattr(this->descriptor, TCSANOW, &tty) != 0)
+    {
+      return -1;
+    }
+    return 0;
+  }
+  inline int handle::xioctl(int request, void *arg)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      int r = ioctl(this->descriptor, request, arg);
+      if (r != -1 || errno != EINTR)
+        return r;
+    }
+    return -1;
+  }
   inline int handle::transfer(u8 command,u8 address,u8 offset,u8 *buffer,u16 length,u32 flags){
     int retval = 0;
       switch(this->type){
@@ -310,29 +350,14 @@ namespace engine {
       printf("Could not open serial port\r\n");
       return -1;
     }
-
-    // Set custom buad rate
-    /*if(baud >115200){
-      //! Use custom baud rates
-      struct termios2 config;
-      int retval = ioctl(this->descriptor,TCGETS2,&config);
-      if(!retval){
-        config.c_cflag &= ~CBAUD;
-        config.c_cflag |= BOTHER;
-        config.c_ispeed = baud;
-        config.c_ospeed = baud;
-        retval = ioctl(this->descriptor,TCSETS2,&config);
-      }
-    } else {
-*/
     if(baud == 9600)
-      set_interface_attribs (this->descriptor, B9600, 0);  // set speed to 9,600 bps, 8n1 (no parity)
+      set_interface_attribs (B9600, 0);  // set speed to 9,600 bps, 8n1 (no parity)
     else if(baud == 115200)
-      set_interface_attribs (this->descriptor, B115200, 0);  // set speed to 115,200 bps, 8n1 (no parity)
+      set_interface_attribs (B115200, 0);  // set speed to 115,200 bps, 8n1 (no parity)
     else if(baud == 1000000)
-      set_interface_attribs (this->descriptor, B1000000, 0);  // set speed to 1,000,000 bps, 8n1 (no parity)
+      set_interface_attribs (B1000000, 0);  // set speed to 1,000,000 bps, 8n1 (no parity)
     else if(baud == 2000000)
-      set_interface_attribs (this->descriptor, B2000000, 0);  // set speed to 2,000,000 bps, 8n1 (no parity)
+      set_interface_attribs (B2000000, 0);  // set speed to 2,000,000 bps, 8n1 (no parity)
     //}
     this->setBlocking(false);
     return 0;
@@ -540,14 +565,18 @@ namespace engine {
     return retval;
   }
   inline void handle::close(){
-    if(this->type == FHT_SOCKET){
-      ::shutdown(this->descriptor,SHUT_RDWR);
-    } else if (this->type == FHT_EXEC){
-      pclose(this->filepointer);
-      this->descriptor=0;
-      return;
+    switch(this->type){
+      case FHT_EXEC: {
+        pclose(this->filepointer);
+        this->filepointer = 0;
+      } break;
+      case FHT_SOCKET: {
+        ::shutdown(this->descriptor,SHUT_RDWR);
+      } break;
+      default:{
+        ::close(this->descriptor);
+      } break;
     }
-    ::close(this->descriptor);
   }
   inline int handle::read(void *buffer,int size){
     int retval = 0;
