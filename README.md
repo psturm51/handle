@@ -13,15 +13,15 @@ This library is a simple header-only library to make file handling easier in Lin
 
 ## Methods
 
-`int open(u32 flags=0)`
+`s32 open(u32 flags=0)`
 
 The open function and flags are used to call low level funcions depending on the context provided by
 
 `void close()`
 
-`int read(void *buffer, int size)`
+`s32 read(void *buffer, s32 size)`
 
-`int write(const void *buffer, int size)`
+`s32 write(const void *buffer, s32 size)`
 
 `void rewind()`
 
@@ -31,11 +31,11 @@ The open function and flags are used to call low level funcions depending on the
 
 `s64 available()`
 
-`int allocate(s64 s)`
+`s32 allocate(s64 s)`
 
-`int setBlocking(bool b)`
+`s32 setBlocking(bool b)`
 
-`int setTime(s64 alarm,s64 frequency,u32 flags=0)`
+`s32 setTime(s64 alarm,s64 frequency,u32 flags=0)`
 
 `handle* add(handle *h,u32 flags)`
 
@@ -43,6 +43,6 @@ The open function and flags are used to call low level funcions depending on the
 
 `handle* accept()`
 
-`int transfer(u8 command,u8 address,u8 offset, u8 *buffer,u16 length,u32 flags)`
+`s32 transfer(u8 command,u8 address,u8 offset, u8 *buffer,u16 length,u32 flags)`
 
-`int setAddress(short address)`
+`s32 setAddress(short address)`
