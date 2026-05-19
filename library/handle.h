@@ -116,8 +116,11 @@ namespace engine {
   class handle {
   private:
     virtual bool assertKeyboard();
-    virtual int xioctl(int request, void *arg);
-    virtual int set_interface_attribs(int speed,int parity);
+    virtual s32 xioctl(s32 request, void *arg);
+    virtual s32 set_interface_attribs(s32 speed,s32 parity);
+    //! Open a serial descriptor
+    virtual s32 openSerial(s32 baud);
+
   public:
     handle():
     filepointer(0){
@@ -143,16 +146,15 @@ namespace engine {
     }
 
     //! Open the descriptor, possibly using some flags
-    virtual int open(u32 flags = 0);
-    //! Open a serial descriptor
-    virtual int openSerial(int baud);
+    virtual s32 open(u32 flags = 0);
+    
     //! Generic descriptor close. Works with just about everything
     virtual void close();
 
     //! Read data from the descriptor
-    virtual int read(void *buffer,int size);
+    virtual s32 read(void *buffer,s32 size);
     //! Write data to the descriptor
-    virtual int write(const void *buffer,int size);
+    virtual s32 write(const void *buffer,s32 size);
     //! Start the file iterator from the beginning
     virtual void rewind();
     //! Check the total size of the descriptor
@@ -162,13 +164,13 @@ namespace engine {
     //! Check how many bytes are available on the handle for reading
     virtual s64 available();
     //! For use in regular files, allocate an amount of blank disk.
-    virtual int allocate(s64 s);
+    virtual s32 allocate(s64 s);
     //! Use different methods to change blocking mechanics for the descriptor
-    virtual int setBlocking(bool b);
+    virtual s32 setBlocking(bool b);
     /** Context dependant:
      * For a timer descriptor, it will set the nessecary timer specifics,
      * otherwise, it will return -1; */
-    virtual int setTime(s64 alarm,s64 frequency,u32 flags=0);
+    virtual s32 setTime(s64 alarm,s64 frequency,u32 flags=0);
    
     /** Context dependant:
       FHT_INOTIFY: notify any changes on this handle
@@ -186,9 +188,9 @@ namespace engine {
     /** Transfer some bytes using i2c or spi bus only. For low-level
      * hardware io
     */
-    virtual int transfer(u8 command,u8 address,u8 offset,u8 *buffer,u16 length,u32 flags);
+    virtual s32 transfer(u8 command,u8 address,u8 offset,u8 *buffer,u16 length,u32 flags);
     //! For i2c only, sets slave address
-    virtual int setAddress(short address);
+    virtual s32 setAddress(s16 address);
 
     //! THE FOLLOWING FUNCTIONS ARE CAMERA SPECIFIC
 
@@ -198,11 +200,11 @@ namespace engine {
 
     fileHandleType type;
 	
-    int descriptor;
+    s32 descriptor;
 	
     FILE *filepointer;
   };
-  inline int handle::set_interface_attribs( int speed, int parity)
+  inline s32 handle::set_interface_attribs( s32 speed, s32 parity)
   {
     struct termios tty;
     if (tcgetattr(this->descriptor, &tty) != 0)
@@ -238,18 +240,18 @@ namespace engine {
     }
     return 0;
   }
-  inline int handle::xioctl(int request, void *arg)
+  inline s32 handle::xioctl(s32 request, void *arg)
   {
-    for (int i = 0; i < 3; i++)
+    for (s32 i = 0; i < 3; i++)
     {
-      int r = ioctl(this->descriptor, request, arg);
+      s32 r = ioctl(this->descriptor, request, arg);
       if (r != -1 || errno != EINTR)
         return r;
     }
     return -1;
   }
-  inline int handle::transfer(u8 command,u8 address,u8 offset,u8 *buffer,u16 length,u32 flags){
-    int retval = 0;
+  inline s32 handle::transfer(u8 command,u8 address,u8 offset,u8 *buffer,u16 length,u32 flags){
+    s32 retval = 0;
       switch(this->type){
         case FHT_I2C: {
           //! Do an i2c transfer
@@ -259,7 +261,7 @@ namespace engine {
             { address, I2C_M_RD, length, buffer }
           };
           struct i2c_rdwr_ioctl_data ioctl_data = { messages, 2 };
-          int result = ioctl(this->descriptor, I2C_RDWR, &ioctl_data);
+          s32 result = ioctl(this->descriptor, I2C_RDWR, &ioctl_data);
           if(result != 2){
             retval = -1;
           }
@@ -273,8 +275,8 @@ namespace engine {
   }
   inline bool handle::assertKeyboard(){
     bool isKeyboard = false;
-    int32_t event_bitmap = 0;
-    int32_t kbd_bitmap = KEY_A | KEY_B | KEY_C | KEY_Z;
+    s32 event_bitmap = 0;
+    s32 kbd_bitmap = KEY_A | KEY_B | KEY_C | KEY_Z;
 
     ioctl(this->descriptor, EVIOCGBIT(0, sizeof(event_bitmap)), &event_bitmap);
     if((EV_KEY & event_bitmap) == EV_KEY){
@@ -290,11 +292,11 @@ namespace engine {
 
     return isKeyboard;
   }
-  inline int handle::setBlocking(bool b){
+  inline s32 handle::setBlocking(bool b){
     //! Set blocking / non-blocking mode
-    int retval = 0;
+    s32 retval = 0;
     //! Convert to int
-    int should_block = (b==true)?1:0;
+    s32 should_block = (b==true)?1:0;
     switch(this->type){
       case FHT_SERIAL: {
         //! This is a serial port. Set serial port specifics
@@ -316,7 +318,7 @@ namespace engine {
       case FHT_FILE:
       case FHT_INOTIFY:
       case FHT_SOCKET: {
-        int flags = fcntl(this->descriptor, F_GETFL, 0);
+        s32 flags = fcntl(this->descriptor, F_GETFL, 0);
         if (flags == -1) return false;
         flags = should_block ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
         retval =  (fcntl(this->descriptor, F_SETFL, flags) == 0) ? 0 : -1;
@@ -343,7 +345,7 @@ namespace engine {
       } break;
     }
   }
-  inline int handle::openSerial(int baud){
+  inline s32 handle::openSerial(s32 baud){
     //! The resource type is a serial port
     this->descriptor = ::open(this->path.c_str(), O_RDWR | O_NOCTTY | O_SYNC);
     if (this->descriptor <0){
@@ -359,10 +361,10 @@ namespace engine {
     else if(baud == 2000000)
       set_interface_attribs (B2000000, 0);  // set speed to 2,000,000 bps, 8n1 (no parity)
     //}
-    this->setBlocking(false);
+    this->setBlocking(true);
     return 0;
   }
-  inline int handle::setTime(s64 alarm,s64 frequency,u32 flags){
+  inline s32 handle::setTime(s64 alarm,s64 frequency,u32 flags){
 
     if(this->type != FHT_TIMER) return -1;
 
@@ -388,14 +390,14 @@ namespace engine {
       nspec.it_interval.tv_nsec = f_nsec;
     }
 
-    int retval = timerfd_settime(this->descriptor,0,&nspec,NULL);
+    s32 retval = timerfd_settime(this->descriptor,0,&nspec,NULL);
     if(retval < 0){
       printf("Could not set timer\r\n");
     }
     return retval;
   }
-  inline int handle::open(u32 flags){
-    int retval = 0;
+  inline s32 handle::open(u32 flags){
+    s32 retval = 0;
     switch(this->type){
       case FHT_FILE: {
         //! The resource type is a standard file
@@ -578,8 +580,8 @@ namespace engine {
       } break;
     }
   }
-  inline int handle::read(void *buffer,int size){
-    int retval = 0;
+  inline s32 handle::read(void *buffer,s32 size){
+    s32 retval = 0;
 
     switch(this->type){
       case FHT_SOCKET: {
@@ -592,7 +594,7 @@ namespace engine {
 
     return retval;
   }
-  inline int handle::write(const void *buffer,int size){
+  inline s32 handle::write(const void *buffer,s32 size){
     if(this->type == FHT_SOCKET)
       return send(this->descriptor,buffer,size,0);
     return ::write(this->descriptor,buffer,size);
@@ -640,7 +642,7 @@ namespace engine {
   }
   //! Only for use on regular files. This allows us to preallocate large
   //! segments of disk for our applications. Pretty handy.
-  inline int handle::allocate(s64 s){
+  inline s32 handle::allocate(s64 s){
     //! Check if this type of file supports this operation
     if(this->type != FHT_FILE) return -1;
 
@@ -657,7 +659,7 @@ namespace engine {
     this->write(buff,remains);
     return 0;
   }
-  inline int handle::setAddress(short address){
+  inline s32 handle::setAddress(s16 address){
     if(this->type != FHT_I2C) return -1;
     //! Set the specific address for the i2c slave
     return ioctl(this->descriptor, I2C_SLAVE,address);
