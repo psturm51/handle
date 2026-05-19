@@ -561,7 +561,13 @@ namespace engine {
           retval = -1;
         }
       } break;
-      default: {} break;
+      default: {
+        this->descriptor = ::open(this->path.c_str(), O_RDWR);
+        if (this->descriptor == -1)
+        {
+          retval = -1;
+        }
+      } break;
     }
 
     return retval;
