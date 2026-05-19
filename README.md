@@ -15,7 +15,7 @@ This library is a simple header-only library to make file handling easier in Lin
 
 `s32 open(u32 flags=0)`
 
-The open function and flags are used to call low level funcions depending on the context provided by
+The open function and flags are used to call low level functions depending on the context provided by `type`
 
 `void close()`
 
@@ -49,8 +49,22 @@ The open function and flags are used to call low level funcions depending on the
 
 ## Support
 
-Support this small project and projects like it by donating to the cause. My bitcoin address is the following:
+If you've found this project helpful, please donate to support the project.
 
-![Bitcoin Wallet](./data/address.png "Bitcoin Wallet Address")
+#### Bitcoin
+
+![Bitcoin Wallet](./data/bitcoin_address.png "Bitcoin Wallet Address")
 
 1Hmn14M59F7DWvmyCbdCPhh1kn8tkuKQUr
+
+#### Litecoin
+
+![Litecoin Wallet](./data/litecoin_address.png "Litecoin Wallet Address")
+
+LWxVeCezdD7QJySrnaSwUe2Kv2L7A4bxMa
+
+#### Ethereum
+
+![Ethereum Wallet](./data/ethereum_address.png "Ethereum Wallet Address")
+
+0x497af715daa68dae5be542fbe2171174bf352092
