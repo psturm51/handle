@@ -46,3 +46,11 @@ The open function and flags are used to call low level funcions depending on the
 `s32 transfer(u8 command,u8 address,u8 offset, u8 *buffer,u16 length,u32 flags)`
 
 `s32 setAddress(short address)`
+
+## Support
+
+Support this small project and projects like it by donating to the cause. My bitcoin address is the following:
+
+![Bitcoin Wallet](./data/address.png "Bitcoin Wallet Address")
+
+1Hmn14M59F7DWvmyCbdCPhh1kn8tkuKQUr
