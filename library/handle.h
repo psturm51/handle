@@ -15,6 +15,7 @@
 #include <linux/i2c.h>
 #include <linux/spi/spidev.h>
 #include <linux/input.h>
+#include <linux/videodev2.h>
 #include <sys/inotify.h>
 #include <sys/timerfd.h>
 #include <sys/socket.h>
@@ -145,6 +146,8 @@ namespace engine {
       this->filepointer = 0;
     }
 
+    virtual handle& operator=(const handle& other);
+
     //! Open the descriptor, possibly using some flags
     virtual s32 open(u32 flags = 0);
     
@@ -160,7 +163,7 @@ namespace engine {
     //! Check the total size of the descriptor
     virtual s64 size();
     //! Check the current position of the descriptor
-    virtual s64 position();
+    virtual s64 position(s64 pos = 0);
     //! Check how many bytes are available on the handle for reading
     virtual s64 available();
     //! For use in regular files, allocate an amount of blank disk.
@@ -192,6 +195,10 @@ namespace engine {
     //! For i2c only, sets slave address
     virtual s32 setAddress(s16 address);
 
+    //! IOCTL
+    virtual s32 ioctl(s32 request,void *arg);
+    virtual s32 ioctl(u32 request,void *arg);
+
     //! THE FOLLOWING FUNCTIONS ARE CAMERA SPECIFIC
 
     //! END CAMERA FUNCTIONS
@@ -204,6 +211,13 @@ namespace engine {
 	
     FILE *filepointer;
   };
+  inline handle& handle::operator=(const handle& other){
+    this->path = other.path;
+    this->type = other.type;
+    this->descriptor = other.descriptor;
+    this->filepointer = other.filepointer;
+    return *this;
+  }
   inline s32 handle::set_interface_attribs( s32 speed, s32 parity)
   {
     struct termios tty;
@@ -244,7 +258,7 @@ namespace engine {
   {
     for (s32 i = 0; i < 3; i++)
     {
-      s32 r = ioctl(this->descriptor, request, arg);
+      s32 r = ::ioctl(this->descriptor, request, arg);
       if (r != -1 || errno != EINTR)
         return r;
     }
@@ -261,7 +275,7 @@ namespace engine {
             { address, I2C_M_RD, length, buffer }
           };
           struct i2c_rdwr_ioctl_data ioctl_data = { messages, 2 };
-          s32 result = ioctl(this->descriptor, I2C_RDWR, &ioctl_data);
+          s32 result = ::ioctl(this->descriptor, I2C_RDWR, &ioctl_data);
           if(result != 2){
             retval = -1;
           }
@@ -278,11 +292,11 @@ namespace engine {
     s32 event_bitmap = 0;
     s32 kbd_bitmap = KEY_A | KEY_B | KEY_C | KEY_Z;
 
-    ioctl(this->descriptor, EVIOCGBIT(0, sizeof(event_bitmap)), &event_bitmap);
+    ::ioctl(this->descriptor, EVIOCGBIT(0, sizeof(event_bitmap)), &event_bitmap);
     if((EV_KEY & event_bitmap) == EV_KEY){
         // The device acts like a keyboard
 
-        ioctl(this->descriptor, EVIOCGBIT(EV_KEY, sizeof(event_bitmap)), &event_bitmap);
+        ::ioctl(this->descriptor, EVIOCGBIT(EV_KEY, sizeof(event_bitmap)), &event_bitmap);
         if((kbd_bitmap & event_bitmap) == kbd_bitmap){
             // The device supports A, B, C, Z keys, so it probably is a keyboard
             isKeyboard = true;
@@ -418,10 +432,32 @@ namespace engine {
         //! Open the descriptor as though it is a camera
 
         //! Open the descriptor in read-only mode
-        this->descriptor = ::open(this->path.c_str(),O_RDONLY);
+        this->descriptor = ::open(this->path.c_str(),O_RDWR);
 
         //! Check if descriptor opened
         if(this->descriptor == -1){
+          retval = -1;
+        }
+
+        // 2. Query capabilities
+        struct v4l2_capability cap;
+        if (::ioctl(this->descriptor, VIDIOC_QUERYCAP, &cap) < 0)
+        {
+          ::close(this->descriptor);
+          retval = -1;
+          break;
+        }
+
+        struct v4l2_format fmt;
+        fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        fmt.fmt.pix.width = 640;
+        fmt.fmt.pix.height = 480;
+        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+        fmt.fmt.pix.field = V4L2_FIELD_NONE;
+
+        if (::ioctl(this->descriptor, VIDIOC_S_FMT, &fmt) < 0)
+        {
+          ::close(this->descriptor);
           retval = -1;
         }
       } break;
@@ -615,8 +651,8 @@ namespace engine {
     }
     return(s.st_size);
   }
-  inline s64 handle::position(){
-    return lseek64(this->descriptor,0,SEEK_CUR);
+  inline s64 handle::position(s64 pos){
+    return lseek64(this->descriptor,pos,SEEK_CUR);
   }
   inline s64 handle::available(){
     s64 o = 0;
@@ -625,7 +661,7 @@ namespace engine {
       case FHT_EXEC:
       case FHT_SOCKET: {
         int out = 0;
-        ioctl(this->descriptor,FIONREAD,&out);
+        ::ioctl(this->descriptor,FIONREAD,&out);
         o = out;
       } break;
       case FHT_FILE: {
@@ -668,7 +704,13 @@ namespace engine {
   inline s32 handle::setAddress(s16 address){
     if(this->type != FHT_I2C) return -1;
     //! Set the specific address for the i2c slave
-    return ioctl(this->descriptor, I2C_SLAVE,address);
+    return ::ioctl(this->descriptor, I2C_SLAVE,address);
+  }
+  inline s32 handle::ioctl(s32 request,void *arg){
+    return ::ioctl(this->descriptor,request,arg);
+  }
+  inline s32 handle::ioctl(u32 request,void *arg){
+    return ::ioctl(this->descriptor,request,arg);
   }
   //! CAMERA SPECIFIC FUNCTIONS
 
