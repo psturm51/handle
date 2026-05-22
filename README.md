@@ -64,7 +64,7 @@ The open function and flags are used to call low level functions depending on th
 
 `s64 size()`
 
-`s64 position()`
+`s64 position(s64 pos=0)`
 
 `s64 available()`
 
@@ -83,6 +83,8 @@ The open function and flags are used to call low level functions depending on th
 `s32 transfer(u8 command,u8 address,u8 offset, u8 *buffer,u16 length,u32 flags)`
 
 `s32 setAddress(short address)`
+
+`s32 getCameraCapabilities(struct v4l2_capability *cap);`
 
 ## Support
 
