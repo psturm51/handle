@@ -200,7 +200,7 @@ namespace engine {
     virtual s32 ioctl(u32 request,void *arg);
 
     //! THE FOLLOWING FUNCTIONS ARE CAMERA SPECIFIC
-
+    virtual s32 getCameraCapabilities(struct v4l2_capability *cap);
     //! END CAMERA FUNCTIONS
 
     std::string path;
@@ -432,7 +432,7 @@ namespace engine {
         //! Open the descriptor as though it is a camera
 
         //! Open the descriptor in read-only mode
-        this->descriptor = ::open(this->path.c_str(),O_RDWR);
+        this->descriptor = ::open(this->path.c_str(),O_RDWR | O_NONBLOCK);
 
         //! Check if descriptor opened
         if(this->descriptor == -1){
@@ -452,7 +452,7 @@ namespace engine {
         fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         fmt.fmt.pix.width = 640;
         fmt.fmt.pix.height = 480;
-        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
         fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
         if (::ioctl(this->descriptor, VIDIOC_S_FMT, &fmt) < 0)
@@ -713,7 +713,11 @@ namespace engine {
     return ::ioctl(this->descriptor,request,arg);
   }
   //! CAMERA SPECIFIC FUNCTIONS
-
+  inline s32 handle::getCameraCapabilities(struct v4l2_capability *cap){
+    if(!cap) return -1;
+    if(this->type != FHT_CAMERA) return -1;
+    return ::ioctl(this->descriptor, VIDIOC_QUERYCAP, cap);
+  }
 }
 
 #endif
