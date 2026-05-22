@@ -1,9 +1,27 @@
 #include "../library/handle.h"
 
+class camera : public engine::handle {
+  public:
+    camera(const std::string& px):
+    handle(px, engine::FHT_CAMERA)
+    {}
+    virtual ~camera(){}
+
+    virtual engine::s32 getCameraCapabilities(struct v4l2_capability *cap);
+};
+inline engine::s32 camera::getCameraCapabilities(struct v4l2_capability *cap)
+{
+    if (!cap)
+        return -1;
+    if (this->type != engine::FHT_CAMERA)
+        return -1;
+    return ::ioctl(this->descriptor, VIDIOC_QUERYCAP, cap);
+}
+
 int main()
 {
     printf("Testing handle class\r\n");
-    engine::handle h("/dev/video0", engine::FHT_CAMERA);
+    camera h("/dev/video0");
     if (h.open() == -1)
     {
         printf("Could not open file\r\n");
