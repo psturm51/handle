@@ -200,7 +200,7 @@ namespace engine {
     virtual s32 ioctl(u32 request,void *arg);
 
     //! THE FOLLOWING FUNCTIONS ARE CAMERA SPECIFIC
-    virtual s32 getCameraCapabilities(struct v4l2_capability *cap);
+    
     //! END CAMERA FUNCTIONS
 
     std::string path;
@@ -713,11 +713,7 @@ namespace engine {
     return ::ioctl(this->descriptor,request,arg);
   }
   //! CAMERA SPECIFIC FUNCTIONS
-  inline s32 handle::getCameraCapabilities(struct v4l2_capability *cap){
-    if(!cap) return -1;
-    if(this->type != FHT_CAMERA) return -1;
-    return ::ioctl(this->descriptor, VIDIOC_QUERYCAP, cap);
-  }
+  
 }
 
 #endif
